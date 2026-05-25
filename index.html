@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷日报</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        paper: {
+                            bg: '#f4f1e8',
+                            card: '#faf8f0',
+                            cell: '#e8e4d6',
+                            cellHover: '#ddd8c8',
+                            revealed: '#f0ebe0',
+                            ink: '#2c2416',
+                            red: '#8b0000',
+                            blue: '#1a3a5c',
+                            gold: '#b8860b'
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['"Noto Serif SC"', '"Playfair Display"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .paper-texture {
+                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+            }
+            .cell {
+                @apply w-8 h-8 flex items-center justify-center text-sm font-serif font-bold cursor-pointer select-none transition-all duration-200;
+            }
+            .cell-hidden {
+                @apply bg-paper-cell hover:bg-paper-cellHover border border-paper-ink/20 shadow-sm;
+            }
+            .cell-revealed {
+                @apply bg-paper-revealed border border-paper-ink/10;
+            }
+            .cell-mine {
+                @apply bg-paper-red/20 border border-paper-red/40;
+            }
+            .cell-flagged {
+                @apply bg-paper-blue/20 border border-paper-blue/40;
+            }
+            .text-num-1 { @apply text-blue-800; }
+            .text-num-2 { @apply text-green-800; }
+            .text-num-3 { @apply text-red-800; }
+            .text-num-4 { @apply text-purple-900; }
+            .text-num-5 { @apply text-orange-800; }
+            .text-num-6 { @apply text-cyan-800; }
+            .text-num-7 { @apply text-pink-800; }
+            .text-num-8 { @apply text-gray-800; }
+            .vintage-border {
+                border: 2px solid #2c2416;
+                box-shadow: inset 0 0 0 1px rgba(44, 36, 22, 0.1);
+            }
+            .newspaper-headline {
+                text-shadow: 1px 1px 0 rgba(44, 36, 22, 0.1);
+            }
+        }
+    </style>
+</head>
+<body class="bg-paper-bg min-h-screen text-paper-ink font-serif paper-texture">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="text-center mb-6 border-b-2 border-paper-ink pb-4">
+            <p class="text-xs tracking-widest mb-2">VOL. CLXXIV · No. 6250 · EST. 1989</p>
+            <h1 class="text-5xl font-bold font-serif newspaper-headline tracking-tight mb-1">扫雷日报</h1>
+            <p class="text-sm italic">MINESWEEPER DAILY HERALD</p>
+        </div>
+        <div class="flex justify-between items-center text-xs mb-6 border-b border-paper-ink/30 pb-2">
+            <span id="currentDate">星期日, 五月二十四日, 2026</span>
+            <span>定价: 五文</span>
+            <span>编辑: 未迟先生</span>
+        </div>
+        <div class="bg-paper-card vintage-border rounded-sm p-5 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="text-sm font-bold">【难度】</span>
+                    <select id="difficulty" class="bg-paper-cell text-paper-ink border border-paper-ink/30 px-3 py-1 text-sm font-serif focus:outline-none cursor-pointer">
+                        <option value="easy">初级 · 入门版</option>
+                        <option value="medium" selected>中级 · 标准版</option>
+                        <option value="hard">高级 · 挑战版</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-8">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold">🚩 标记:</span>
+                        <span class="font-mono text-lg font-bold" id="mineCount">40</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold">⏱ 用时:</span>
+                        <span class="font-mono text-lg font-bold" id="timer">000</span>
+                    </div>
+                    <button id="newGame" class="bg-paper-ink text-paper-bg px-4 py-2 text-sm font-serif font-bold hover:bg-paper-ink/90 transition-colors">重新开局</button>
+                </div>
+            </div>
+        </div>
+        <div id="gameOverModal" class="hidden fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+            <div class="bg-paper-card vintage-border p-8 text-center max-w-sm">
+                <div id="resultIcon" class="text-5xl mb-4"></div>
+                <h2 id="resultTitle" class="text-2xl font-bold font-serif mb-2"></h2>
+                <p id="resultMessage" class="text-paper-ink/70 mb-6 font-serif"></p>
+                <div class="flex gap-3 justify-center">
+                    <button onclick="newGame()" class="bg-paper-ink text-paper-bg px-5 py-2 font-serif font-bold">再来一局</button>
+                    <button onclick="generateDailyReport()" class="bg-paper-gold text-white px-5 py-2 font-serif font-bold">生成战报</button>
+                </div>
+            </div>
+        </div>
+        <div id="dailyReportModal" class="hidden fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4 overflow-auto">
+            <div class="max-w-lg w-full">
+                <div id="reportCard" class="bg-paper-card vintage-border p-8 paper-texture">
+                    <div class="text-center border-b-2 border-paper-ink pb-4 mb-6">
+                        <p class="text-xs tracking-widest mb-2">📰 扫雷先锋 · 每日战报</p>
+                        <h2 class="text-3xl font-bold font-serif newspaper-headline">今日成就</h2>
+                        <p id="reportDate" class="text-sm mt-2"></p>
+                    </div>
+                    <div class="space-y-4 mb-6">
+                        <div class="flex justify-between items-center border-b border-paper-ink/20 pb-2">
+                            <span class="font-bold">🏆 最佳战绩</span>
+                            <span id="bestTime" class="text-paper-red font-bold">-- 秒</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-paper-ink/20 pb-2">
+                            <span class="font-bold">🎯 今日对局</span>
+                            <span id="todayGames" class="font-bold">0 局</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-paper-ink/20 pb-2">
+                            <span class="font-bold">✅ 胜利次数</span>
+                            <span id="todayWins" class="text-green-800 font-bold">0 次</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-paper-ink/20 pb-2">
+                            <span class="font-bold">📊 胜率</span>
+                            <span id="winRate" class="text-blue-800 font-bold">-- %</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold">🎖 荣誉称号</span>
+                            <span id="honorTitle" class="text-paper-gold font-bold">扫雷新手</span>
+                        </div>
+                    </div>
+                    <div class="bg-paper-cell/50 p-4 rounded text-center text-sm italic mb-6">
+                        <p id="dailyQuote">"步步为营，方能百战不殆"</p>
+                    </div>
+                    <div class="text-center border-t border-paper-ink/30 pt-4">
+                        <p class="text-sm text-paper-ink/60 mb-2">分享给好友，一同比拼扫雷技艺！</p>
+                        <p class="text-xs font-bold text-paper-blue">minesweeper.weichiai.top</p>
+                        <p class="text-xs text-paper-ink/40 mt-1">未迟 · 一切都来得及</p>
+                    </div>
+                </div>
+                <div class="text-center mt-4 flex gap-3 justify-center">
+                    <button onclick="saveReportImage()" class="bg-green-700 text-white px-6 py-2 font-serif font-bold">📷 保存海报</button>
+                    <button onclick="closeDailyReport()" class="bg-paper-ink text-paper-bg px-6 py-2 font-serif font-bold">关闭</button>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-center">
+            <div class="bg-paper-card vintage-border rounded-sm p-6 inline-block">
+                <div id="board" class="inline-grid gap-px" style="user-select: none;"></div>
+            </div>
+        </div>
+        <div class="text-center mt-6">
+            <button onclick="generateDailyReport()" class="bg-paper-gold text-white px-6 py-2 font-serif font-bold hover:bg-paper-gold/90 transition-colors shadow-md">📰 生成今日扫雷日报</button>
+        </div>
+        <div class="mt-8 border-t border-paper-ink/30 pt-6">
+            <div class="grid grid-cols-2 gap-8 text-sm">
+                <div>
+                    <h3 class="font-bold mb-2">【游戏规则】</h3>
+                    <p class="leading-relaxed">翻开格子，避开所有地雷。数字表示周围八格内地雷数目，以此推断安全区域。标记所有地雷并揭开全部安全格子即为获胜。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2">【操作指南】</h3>
+                    <ul class="leading-relaxed">
+                        <li>· 左键点击：揭开格子</li>
+                        <li>· 右键点击：标记可疑地雷</li>
+                        <li>· 双击已揭开格子：快速展开周围</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-8 pt-4 border-t border-paper-ink/20">
+            <p class="text-lg italic font-serif">"步步为营，三思而后行"</p>
+            <p class="text-xs mt-2 text-paper-ink/60">未迟 · 一切都来得及</p>
+        </div>
+    </div>
+    <script>
+        const DIFFICULTY = {easy:{rows:9,cols:9,mines:10,name:'初级'},medium:{rows:16,cols:16,mines:40,name:'中级'},hard:{rows:16,cols:30,mines:99,name:'高级'}};
+        const QUOTES = ["步步为营，方能百战不殆","智者千虑，必有一得","三思而后行，谋定而后动","居安思危，有备无患","谨慎能捕千秋蝉，小心驶得万年船","凡事预则立，不预则废","运筹帷幄之中，决胜千里之外","多算胜，少算不胜，而况于无算乎","知彼知己，百战不殆","临事而惧，好谋而成","未雨绸缪，防患未然","前车之覆，后车之鉴","谋事在人，成事在天","深思熟虑，方能致远","审时度势，随机应变","稳扎稳打，步步为营","智者务其实，愚者争虚名","先谋后事者昌，先事后谋者亡","功不可以虚成，名不可以伪立","机不可失，时不再来","锲而不舍，金石可镂","千里之行，始于足下","水滴石穿，绳锯木断","持之以恒，终有所成","不积跬步，无以至千里","驽马十驾，功在不舍","只要功夫深，铁杵磨成针","一日一钱，千日千钱","坚持者能在命运风暴中奋斗","胜利属于最坚忍的人","耐心和持久胜过激烈和狂热","不经一番寒彻骨，怎得梅花扑鼻香","宝剑锋从磨砺出，梅花香自苦寒来","路漫漫其修远兮，吾将上下而求索","天行健，君子以自强不息","地势坤，君子以厚德载物","志不强者智不达","世上无难事，只怕有心人","功夫不负有心人","咬定青山不放松，立根原在破岩中","学而不思则罔，思而不学则殆","知之为知之，不知为不知，是知也","温故而知新，可以为师矣","博学之，审问之，慎思之，明辨之，笃行之","三人行，必有我师焉","敏而好学，不耻下问","知之者不如好之者，好之者不如乐之者","工欲善其事，必先利其器","欲速则不达，见小利则大事不成","小不忍则乱大谋","君子坦荡荡，小人长戚戚","言必信，行必果","己所不欲，勿施于人","智者乐水，仁者乐山","静以修身，俭以养德","淡泊以明志，宁静以致远","非学无以广才，非志无以成学","读书破万卷，下笔如有神","书山有路勤为径，学海无涯苦作舟","学如逆水行舟，不进则退","胜者为王，败者为寇","胜败乃兵家常事","不以成败论英雄","失败是成功之母","胜不骄，败不馁","成大事者，不拘小节","一将功成万骨枯","功成名就，衣锦还乡","马到成功，旗开得胜","百战百胜，所向披靡","势如破竹，锐不可当","攻无不克，战无不胜","大获全胜，凯旋而归","独占鳌头，名列前茅","出类拔萃，鹤立鸡群","登峰造极，炉火纯青","精益求精，更上一层楼","青出于蓝而胜于蓝","长江后浪推前浪","后来者居上","山重水复疑无路，柳暗花明又一村","车到山前必有路，船到桥头自然直","塞翁失马，焉知非福","福兮祸之所伏，祸兮福之所倚","天时不如地利，地利不如人和","众人拾柴火焰高","三个臭皮匠，顶个诸葛亮","人心齐，泰山移","团结就是力量","和为贵，谐为美","家和万事兴","海内存知己，天涯若比邻","莫愁前路无知己，天下谁人不识君","路遥知马力，日久见人心","患难见真情","人生得一知己足矣","千金易得，知己难求","有缘千里来相会","莫愁前路无知己","一切都是最好的安排"];
+        const HONOR_TITLES = [{threshold:0,title:'扫雷新手'},{threshold:3,title:'初露锋芒'},{threshold:5,title:'扫雷好手'},{threshold:10,title:'扫雷达人'},{threshold:20,title:'扫雷大师'},{threshold:50,title:'扫雷神人'},{threshold:100,title:'扫雷传奇'}];
+        let game = {board:[],rows:16,cols:16,mines:40,revealed:0,flagged:0,gameOver:!1,firstClick:!0,timer:0,timerInterval:null,stats:{todayGames:0,todayWins:0,bestTime:null,lastDate:null}};
+        const boardEl = document.getElementById('board'), mineCountEl = document.getElementById('mineCount'), timerEl = document.getElementById('timer'), difficultyEl = document.getElementById('difficulty'), modal = document.getElementById('gameOverModal'), resultIcon = document.getElementById('resultIcon'), resultTitle = document.getElementById('resultTitle'), resultMessage = document.getElementById('resultMessage'), dailyReportModal = document.getElementById('dailyReportModal');
+        function initDate(){const e=new Date,t=["星期日","星期一","星期二","星期三","星期四","星期五","星期六"],a=["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"],l=`${t[e.getDay()]}, ${a[e.getMonth()]}${e.getDate()}日, ${e.getFullYear()}`;document.getElementById("currentDate").textContent=l,document.getElementById("reportDate").textContent=l;const s=`${e.getFullYear()}-${e.getMonth()}-${e.getDate()}`,i=localStorage.getItem("minesweeperStats");i?(game.stats=JSON.parse(i),game.stats.lastDate!==s&&(game.stats.todayGames=0,game.stats.todayWins=0,game.stats.bestTime=null,game.stats.lastDate=s)):game.stats.lastDate=s}
+        function saveStats(){localStorage.setItem("minesweeperStats",JSON.stringify(game.stats))}
+        function init(){const e=DIFFICULTY[difficultyEl.value];Object.assign(game,e,{revealed:0,flagged:0,gameOver:!1,firstClick:!0,timer:0}),game.timerInterval&&clearInterval(game.timerInterval),updateUI(),createBoard(),modal.classList.add("hidden"),initDate()}
+        function createBoard(){game.board=Array(game.rows).fill(null).map((()=>Array(game.cols).fill(null).map((()=>({mine:!1,revealed:!1,flagged:!1,count:0}))))),boardEl.style.gridTemplateColumns=`repeat(${game.cols}, 2rem)`,boardEl.innerHTML="";for(let e=0;e<game.rows;e++)for(let t=0;t<game.cols;t++){const a=document.createElement("div");a.className="cell cell-hidden",a.dataset.row=e,a.dataset.col=t,a.addEventListener("click",handleClick),a.addEventListener("contextmenu",handleRightClick),a.addEventListener("dblclick",handleDoubleClick),boardEl.appendChild(a)}}
+        function placeMines(e,t){for(let a=0;a<game.mines;){const l=Math.floor(Math.random()*game.rows),s=Math.floor(Math.random()*game.cols);!game.board[l][s].mine&&!(Math.abs(l-e)<=1&&Math.abs(s-t)<=1)&&(game.board[l][s].mine=!0,a++)}for(let a=0;a<game.rows;a++)for(let l=0;l<game.cols;l++)game.board[a][l].mine||(game.board[a][l].count=countAdjacentMines(a,l))}
+        function countAdjacentMines(e,t){let a=0;for(let l=-1;l<=1;l++)for(let s=-1;s<=1;s++){const i=e+l,r=t+s;i>=0&&i<game.rows&&r>=0&&r<game.cols&&game.board[i][r].mine&&a++}return a}
+        function getCell(e,t){return boardEl.children[e*game.cols+t]}
+        function handleClick(e){if(!game.gameOver){const t=parseInt(e.target.dataset.row),a=parseInt(e.target.dataset.col),l=game.board[t][a];if(!l.flagged&&!l.revealed){if(game.firstClick&&(game.firstClick=!1,placeMines(t,a),startTimer()),l.mine)return void endGame(!1);reveal(t,a),checkWin()}}}
+        function handleRightClick(e){e.preventDefault();if(!game.gameOver){const t=parseInt(e.target.dataset.row),a=parseInt(e.target.dataset.col),l=game.board[t][a];if(!l.revealed){const s=getCell(t,a);l.flagged?(l.flagged=!1,game.flagged--,s.className="cell cell-hidden",s.innerHTML=""):(l.flagged=!0,game.flagged++,s.className="cell cell-flagged",s.innerHTML="⚑"),updateUI()}}}
+        function handleDoubleClick(e){if(!game.gameOver){const t=parseInt(e.target.dataset.row),a=parseInt(e.target.dataset.col),l=game.board[t][a];if(l.revealed&&0!==l.count){let e=0;for(let a=-1;a<=1;a++)for(let l=-1;l<=1;l++){const s=t+a,i=a+l;i>=0&&i<game.rows&&l>=0&&l<game.cols&&game.board[i][l].flagged&&e++}if(e===l.count){for(let a=-1;a<=1;a++)for(let e=-1;e<=1;e++){const l=t+a,s=a+e;if(l>=0&&l<game.rows&&s>=0&&s<game.cols){const a=game.board[l][s];if(!a.revealed&&!a.flagged){if(a.mine)return void endGame(!1);reveal(l,s)}}}checkWin()}}}}
+        function reveal(e,t){const a=game.board[e][t];if(!a.revealed&&!a.flagged){a.revealed=!0,game.revealed++;const l=getCell(e,t);if(l.className="cell cell-revealed",a.count>0)l.textContent=a.count,l.classList.add(`text-num-${a.count}`);else if(0===a.count)for(let s=-1;s<=1;s++)for(let i=-1;i<=1;i++){const r=e+s,n=t+i;r>=0&&r<game.rows&&n>=0&&n<game.cols&&reveal(r,n)}}}
+        function checkWin(){game.revealed===game.rows*game.cols-game.mines&&endGame(!0)}
+        function endGame(e){game.gameOver=!0,stopTimer(),game.stats.todayGames++,e&&(game.stats.todayWins++,(null===game.stats.bestTime||game.timer<game.stats.bestTime)&&(game.stats.bestTime=game.timer)),saveStats();for(let t=0;t<game.rows;t++)for(let a=0;a<game.cols;a++){const l=game.board[t][a],s=getCell(t,a);l.mine&&!l.flagged?(s.className="cell cell-mine",s.innerHTML="💣"):!l.mine&&l.flagged&&(s.className="cell cell-flagged",s.innerHTML="✕")}e?(resultIcon.textContent="🏆",resultTitle.textContent="恭贺阁下旗开得胜！",resultMessage.textContent=`先生仅用时 ${game.timer} 秒便完成${DIFFICULTY[difficultyEl.value].name}局，智慧非凡！`):(resultIcon.textContent="💥",resultTitle.textContent="惜哉！功亏一篑",resultMessage.textContent="阁下不慎触发地雷，胜败乃兵家常事，请再接再厉。"),modal.classList.remove("hidden")}
+        function startTimer(){game.timerInterval=setInterval((()=>{game.timer++,timerEl.textContent=String(game.timer).padStart(3,"0")}),1e3)}
+        function stopTimer(){game.timerInterval&&clearInterval(game.timerInterval)}
+        function updateUI(){mineCountEl.textContent=game.mines-game.flagged,timerEl.textContent=String(game.timer).padStart(3,"0")}
+        function newGame(){init()}
+        function generateDailyReport(){modal.classList.add("hidden"),document.getElementById("todayGames").textContent=`${game.stats.todayGames} 局`,document.getElementById("todayWins").textContent=`${game.stats.todayWins} 次`,document.getElementById("bestTime").textContent=null===game.stats.bestTime?"暂无记录":`${game.stats.bestTime} 秒`;if(game.stats.todayGames>0){const e=Math.round(game.stats.todayWins/game.stats.todayGames*100);document.getElementById("winRate").textContent=`${e} %`}else document.getElementById("winRate").textContent="-- %";let e=HONOR_TITLES[0].title;for(let t=HONOR_TITLES.length-1;t>=0;t--)if(game.stats.todayWins>=HONOR_TITLES[t].threshold){e=HONOR_TITLES[t].title;break}document.getElementById("honorTitle").textContent=e,document.getElementById("dailyQuote").textContent=`"${QUOTES[Math.floor(Math.random()*QUOTES.length)]}"`,dailyReportModal.classList.remove("hidden")}
+        function closeDailyReport(){dailyReportModal.classList.add("hidden")}
+        function saveReportImage(){html2canvas(document.getElementById("reportCard"),{backgroundColor:"#faf8f0",scale:2}).then((e=>{const t=document.createElement("a");t.download="扫雷日报-"+new Date().toLocaleDateString()+".png",t.href=e.toDataURL("image/png"),t.click()}))}
+        document.getElementById("newGame").addEventListener("click",newGame),difficultyEl.addEventListener("change",newGame),boardEl.addEventListener("contextmenu",(e=>e.preventDefault())),init();
+    </script>
+</body>
+</html>
