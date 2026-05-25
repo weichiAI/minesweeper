@@ -34,4 +34,4 @@
 git clone https://github.com/你的用户名/minesweeper.git
 
 # 2. 直接用浏览器打开
-双击 minesweeper.html
+双击 index.html
